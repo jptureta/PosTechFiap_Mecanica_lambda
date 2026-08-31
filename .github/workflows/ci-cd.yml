@@ -2,9 +2,9 @@ name: Lambda CI/CD
 
 on:
   pull_request:
-    branches: ["main", "homologacao"]
+    branches: ["main", "homologacao", "production"]
   push:
-    branches: ["main", "homologacao"]
+    branches: ["main", "homologacao", "production"]
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
@@ -59,7 +59,7 @@ jobs:
   deploy-production:
     name: Deploy Produção
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     environment: production
     steps:
