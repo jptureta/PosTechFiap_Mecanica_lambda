@@ -1,6 +1,10 @@
 import json
+import sys
+from pathlib import Path
 
-from src.handler import lambda_handler
+sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
+
+from handler import lambda_handler
 
 
 def test_lambda_handler_returns_healthcheck_response(monkeypatch):
