@@ -1,22 +1,117 @@
-﻿AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Oficina Mecânica Lambda base template
+Description: Oficina Mecânica Lambda - Autenticação por CPF + API Gateway
 
 Globals:
   Function:
     Timeout: 30
     MemorySize: 256
+    Environment:
+      Variables:
+        DB_HOST: !Ref DbHost
+        DB_PORT: !Ref DbPort
+        DB_NAME: !Ref DbName
+        DB_USER: !Ref DbUser
+        DB_PASSWORD: !Ref DbPassword
+        JWT_SECRET_KEY: !Ref JwtSecretKey
+        JWT_ALGORITHM: HS256
+        JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+
+Parameters:
+  DbHost:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/db/host
+    Description: Host do banco de dados PostgreSQL
+  DbPort:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/db/port
+    Description: Porta do banco de dados PostgreSQL
+  DbName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/db/name
+    Description: Nome do banco de dados
+  DbUser:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/db/user
+    Description: Usuário do banco de dados
+  DbPassword:
+    Type: AWS::SSM::Parameter::Value<SecureString>
+    Default: /oficina/db/password
+    Description: Senha do banco de dados (SecureString no SSM)
+  JwtSecretKey:
+    Type: AWS::SSM::Parameter::Value<SecureString>
+    Default: /oficina/jwt/secret_key
+    Description: Chave secreta JWT — deve ser idêntica à usada pela API principal
 
 Resources:
+  # ─────────────────────────────────────────────────────────────
+  # HTTP API Gateway — ponto de entrada público da aplicação
+  # ─────────────────────────────────────────────────────────────
+  OficinaMecanicaApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      Description: API Gateway da Oficina Mecânica — roteia para Lambda e app principal
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+          - X-Request-ID
+        MaxAge: 300
+
+  # ─────────────────────────────────────────────────────────────
+  # Função Lambda principal
+  # ─────────────────────────────────────────────────────────────
   OficinaMecanicaFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
       Handler: handler.lambda_handler
       Runtime: python3.12
+      Description: "Healthcheck e autenticação de clientes via CPF com geração de JWT"
+      Policies:
+        - SSMParameterReadPolicy:
+            ParameterName: "oficina/*"
       Events:
+        # Rota pública — sem autorizador
         HealthCheck:
-          Type: Api
+          Type: HttpApi
           Properties:
+            ApiId: !Ref OficinaMecanicaApi
             Path: /health
-            Method: get
+            Method: GET
+
+        # Rota pública — gera token JWT a partir do CPF
+        AuthCpf:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OficinaMecanicaApi
+            Path: /auth/cpf
+            Method: POST
+
+Outputs:
+  ApiGatewayUrl:
+    Description: "URL base do AWS API Gateway"
+    Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayUrl"
+
+  AuthEndpoint:
+    Description: "Endpoint de autenticação por CPF"
+    Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod/auth/cpf"
+
+  HealthEndpoint:
+    Description: "Endpoint de healthcheck"
+    Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod/health"
+
+  LambdaFunctionArn:
+    Description: "ARN da função Lambda"
+    Value: !GetAtt OficinaMecanicaFunction.Arn
