@@ -24,7 +24,7 @@ flowchart LR
     Lambda -->|2. Consulta cliente ativo| RDS[(AWS RDS PostgreSQL)]
     Lambda -->|3. Gera JWT sub: cpf| Token[token_service.py]
     Token --> APIGW
-    APIGW -->>|200 OK + Bearer Token| Cliente
+    APIGW -->|200 OK + Bearer Token| Cliente
 ```
 
 ## Endpoints Expostos
