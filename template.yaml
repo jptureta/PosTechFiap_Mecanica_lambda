@@ -35,11 +35,11 @@ Parameters:
     Default: /oficina/db/user
     Description: Usuário do banco de dados
   DbPassword:
-    Type: AWS::SSM::Parameter::Value<SecureString>
+    Type: AWS::SSM::Parameter::Value<String>
     Default: /oficina/db/password
-    Description: Senha do banco de dados (SecureString no SSM)
+    Description: Senha do banco de dados no SSM
   JwtSecretKey:
-    Type: AWS::SSM::Parameter::Value<SecureString>
+    Type: AWS::SSM::Parameter::Value<String>
     Default: /oficina/jwt/secret_key
     Description: Chave secreta JWT — deve ser idêntica à usada pela API principal
 
