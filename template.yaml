@@ -60,6 +60,17 @@ Parameters:
     Default: /oficina/vpc/link_security_group_id
     Description: Security Group das ENIs do VPC Link
 
+  # ─────────────────────────────────────────────────────────
+  # CORS — origens permitidas pelo API Gateway.
+  # Default "*" só serve para homologação; em produção passe
+  # a lista de domínios reais via samconfig.toml
+  # (parameter_overrides = "AllowedOrigins=https://app.oficina.com,https://admin.oficina.com").
+  # ─────────────────────────────────────────────────────────
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: "*"
+    Description: Lista de origens (Origin header) permitidas pelo CORS do API Gateway
+
 Resources:
   # ─────────────────────────────────────────────────────────────
   # HTTP API Gateway — ponto de entrada público da aplicação
@@ -70,8 +81,7 @@ Resources:
       StageName: prod
       Description: API Gateway da Oficina Mecânica — roteia para Lambda e app principal
       CorsConfiguration:
-        AllowOrigins:
-          - "*"
+        AllowOrigins: !Ref AllowedOrigins
         AllowMethods:
           - GET
           - POST

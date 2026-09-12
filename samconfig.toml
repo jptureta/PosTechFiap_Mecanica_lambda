@@ -27,3 +27,7 @@ stack_name = "oficina-lambda-production"
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
+# Substitua pelos domínios reais que consomem a API em produção.
+# Aceita mais de um separado por vírgula (sem espaços):
+#   parameter_overrides = "AllowedOrigins=https://app.oficina.com,https://admin.oficina.com"
+parameter_overrides = "AllowedOrigins=https://app.oficina.com"
