@@ -43,6 +43,23 @@ Parameters:
     Default: /oficina/jwt/secret_key
     Description: Chave secreta JWT — deve ser idêntica à usada pela API principal
 
+  # ─────────────────────────────────────────────────────────
+  # Parâmetros do NLB / VPC Link (publicados pelo Terraform
+  # do repositório k8s-infra no SSM Parameter Store).
+  # ─────────────────────────────────────────────────────────
+  NlbListenerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/nlb/listener_arn
+    Description: ARN do listener HTTP do NLB — alvo do integration para o EKS
+  VpcSubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+    Default: /oficina/vpc/subnet_ids
+    Description: Subnets onde o VPC Link cria suas ENIs (mesma VPC do EKS)
+  VpcLinkSecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /oficina/vpc/link_security_group_id
+    Description: Security Group das ENIs do VPC Link
+
 Resources:
   # ─────────────────────────────────────────────────────────────
   # HTTP API Gateway — ponto de entrada público da aplicação
@@ -95,6 +112,48 @@ Resources:
             Path: /auth/cpf
             Method: POST
 
+  # ─────────────────────────────────────────────────────────────
+  # Integração da aplicação FastAPI no EKS via VPC Link
+  #
+  # O API Gateway roda fora da VPC — o VPC Link é o "cabo"
+  # gerenciado que dá a ele uma ENI dentro da VPC do cluster
+  # para alcançar o NLB, que por sua vez encaminha ao NodePort
+  # do Service da API.
+  #
+  # Fluxo: Cliente → API Gateway → VPC Link → NLB → NodePort → Pod
+  # ─────────────────────────────────────────────────────────────
+
+  # VPC Link — cria ENIs nas subnets do EKS
+  OficinaMecanicaVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub "${AWS::StackName}-vpc-link"
+      SubnetIds: !Ref VpcSubnetIds
+      SecurityGroupIds:
+        - !Ref VpcLinkSecurityGroupId
+
+  # Integração HTTP_PROXY apontando para o listener do NLB
+  ApiAppIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref OficinaMecanicaApi
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref OficinaMecanicaVpcLink
+      IntegrationUri: !Ref NlbListenerArn
+      PayloadFormatVersion: "1.0"
+
+  # Rota catch-all: qualquer caminho não capturado pelas rotas
+  # exatas da Lambda (/health, /auth/cpf) vai para a aplicação.
+  # Inclui /api/v1/*, /docs, /openapi.json, /redoc, /metrics.
+  ApiAppRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref OficinaMecanicaApi
+      RouteKey: "ANY /{proxy+}"
+      Target: !Sub "integrations/${ApiAppIntegration}"
+
 Outputs:
   ApiGatewayUrl:
     Description: "URL base do AWS API Gateway"
@@ -107,9 +166,21 @@ Outputs:
     Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod/auth/cpf"
 
   HealthEndpoint:
-    Description: "Endpoint de healthcheck"
+    Description: "Endpoint de healthcheck da Lambda"
     Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod/health"
+
+  ApiAppBaseUrl:
+    Description: "URL base da aplicação FastAPI (rotas /api/v1/*, /docs, /openapi.json)"
+    Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+
+  SwaggerUrl:
+    Description: "Swagger UI da aplicação, servida pelo API Gateway"
+    Value: !Sub "https://${OficinaMecanicaApi}.execute-api.${AWS::Region}.amazonaws.com/prod/docs"
 
   LambdaFunctionArn:
     Description: "ARN da função Lambda"
     Value: !GetAtt OficinaMecanicaFunction.Arn
+
+  VpcLinkId:
+    Description: "ID do VPC Link criado para integrar o gateway ao EKS"
+    Value: !Ref OficinaMecanicaVpcLink
