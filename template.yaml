@@ -73,13 +73,11 @@ Resources:
   OficinaMecanicaFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       CodeUri: src/
       Handler: handler.lambda_handler
       Runtime: python3.12
       Description: "Healthcheck e autenticação de clientes via CPF com geração de JWT"
-      Policies:
-        - SSMParameterReadPolicy:
-            ParameterName: "oficina/*"
       Events:
         # Rota pública — sem autorizador
         HealthCheck:
