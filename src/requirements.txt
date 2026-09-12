@@ -1,0 +1,4 @@
+boto3
+datadog
+python-jose[cryptography]
+psycopg[binary]

@@ -127,7 +127,7 @@ def lambda_handler(event, context):
     method = (event.get("requestContext", {}).get("http", {}).get("method") or
               event.get("httpMethod") or "GET").upper()
 
-    if path == "/auth/cpf" and method == "POST":
+    if path.endswith("/auth/cpf") and method == "POST":
         return _auth_cpf_handler(event, context)
 
     return _healthcheck_handler(event, context)
